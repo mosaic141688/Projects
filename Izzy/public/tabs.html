@@ -1,0 +1,435 @@
+<script type="text/javascript">
+(function(){
+  window._datum="Hello World";
+  window.tabsData={
+     selectedDevice:null,
+     mess:window._datum,
+     selectedSchool:window.selectedSchool,
+     currentLocation:null,
+     deviceTrails:[],
+     users:[],
+     schoolPremises:[],
+     selectedGf:{},
+     newUser:{},
+     drawing:window.drawing
+   }
+
+  tabsVue();
+  showUsage();
+}());
+
+function showUsage(){
+  var tips = [
+    "To get more out of the Izzy Dashboard, login as a registered user",
+    "To log in, first log out from the guest account from the user menu",
+    "When you are done you must log out to protect the integrity of your work"
+  ]
+  var index =0;
+  console.log("SHOWING USAGE");
+  setInterval(()=>$("#tab4").html(tips[index++%3]),20000)
+}
+
+
+
+function tabsVue() {
+ new Vue({
+   el: '#tabs',
+   data: window.tabsData,
+   created:function () {
+     window.database().ref("users").on("value",(snap)=>this.users=snap.val()==null?[]:snap.val());
+     window.izzy.on("selected-school",(school)=>{
+       this.selectedSchool=window.selectedSchool;
+       console.log(JSON.stringify(this.selectedSchool.data.fences));
+      this.schoolPremises=this.selectedSchool.data.fences?this.selectedSchool.data.fences:[];
+     });
+     window.izzy.on("selected-devie",(device)=>{
+        console.log("SELECTED DEVICE:"+device)
+       this.selectedDevice=window.hasOwnProperty("selectedDevice")?window.selectedDevice:null;
+       if((this.selectedDevice!=null)&&(this.selectedDevice.hasOwnProperty("trail"))){
+         for(var tr in this.selectedDevice.trail){
+           this.deviceTrails.push(this.selectedDevice.trail[tr]);
+         }
+       }
+     })
+
+     setInterval(()=>{
+       //if(this.selectedDevice==window.selectedDevice) return;
+
+     },10000)
+
+   },
+   methods:{
+     method1:function () {
+     },
+     showLocation(dv){
+       if(!window.hasOwnProperty("map"))return;
+       console.log("Lat:"+dv.lat+" Lng:"+dv.lng);
+       var myLatlng = new google.maps.LatLng(dv.lat, dv.lng);
+       map.panTo(myLatlng);
+       this.currentLocation = new google.maps.Marker({
+       position: myLatlng,
+       color:"#00ff00",
+       icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          strokeColor: "green",
+          scale: 6
+      },
+       title:(new Date(dv.time)).toLocaleDateString()+" "+(new Date(dv.time)).toLocaleTimeString()
+       });
+       this.currentLocation.setMap(map)
+     },
+     saveReport:function(){
+       try {
+          var result = json2csv({ data: this.deviceTrails, fields: ["time","lat","lng"] });
+          console.log(result);
+        } catch (err) {
+          console.error(err);
+        }
+        var filename = this.selectedDevice._id+".csv"
+        var blob = new Blob([result], {type: "text/plain;charset=utf-8"});
+        //var file = new File(result,filename , {type: "text/plain;charset=utf-8"});
+        saveAs(blob,filename);
+      },
+      newGf:function(){
+        var gfName=$("#gfNameInput").val();
+        for (var i = 0; i < this.schoolPremises.length; i++) {
+          if(this.schoolPremises[i].name==gfName) return alert("Name Cannot Be Used Twice !")
+        }
+        this.schoolPremises.push({
+          name:gfName,
+          poly:[]
+        });
+
+      },
+      updateMessage:function(){
+          console.log(window.tabsData.mess);
+      },
+      editGf:function(gf){
+          window.drawing=true;
+          this.drawing=true;
+          this.selectedGf=gf;
+          window.triangleCoords=this.selectedGf.poly;
+          initPolly();
+          console.log(gf);
+      },
+      saveGf:function(){
+        window.drawing=false;
+        this.drawing=false;
+        this.selectedGf.poly=window.triangleCoords;
+        this.selectedGf={};
+        console.log(JSON.stringify(this.schoolPremises));
+        var signupRef = window.database().ref("schools").child(this.selectedSchool.id).child("fences");
+        signupRef.set(this.schoolPremises);
+      },
+      rmGf:function(){
+      },
+      saveUsers:function(){
+        $("#doneModal").modal("hide");
+        if(window.izzy.user.group!="Technician") return $("#deModal").modal("show");
+        this.users.push(this.newUser)
+        var usersRef = window.database().ref("users");
+        console.log("USERS: "+JSON.stringify(this.users));
+        usersRef.set(this.users)
+        this.newUser={};
+      },
+      setGroup:function(grp){
+        this.newUser.group=grp;
+      }
+   },
+   computed:{
+     b:function () {
+       return this.method1();
+     }
+   }
+ })
+}
+
+function initPolly(){
+  if((bermudaTriangle!=null))bermudaTriangle.setMap(null);
+bermudaTriangle = new google.maps.Polygon({
+  paths: window.triangleCoords,
+  strokeColor: '#FF0000',
+  strokeOpacity: 0.8,
+  strokeWeight: 2,
+  fillColor: '#FF0000',
+  fillOpacity: 0.1
+});
+console.log("Drawing bermuda");
+bermudaTriangle.setMap(map);
+}
+function drawPolly(e){
+triangleCoords.push({lat:e.latLng.lat(),lng:e.latLng.lng()});
+initPolly();
+}
+
+function addUser(){
+  console.log("Add device");
+//  $("#new-dev").show("fast");
+$("#doneModal").modal("show");
+}
+
+
+</script>
+
+<style>
+body {font-family: "Lato", sans-serif;}
+
+ul.tab {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid #ccc;
+    background-color: #f1f1f1;
+}
+
+/* Float the list items side by side */
+ul.tab li {float: left;}
+
+/* Style the links inside the list items */
+ul.tab li a {
+    display: inline-block;
+    color: black;
+    text-align: center;
+    padding: 0px 6px;
+    text-decoration: none;
+    transition: 0.3s;
+    font-size: 14px;
+}
+
+/* Change background color of links on hover */
+ul.tab li a:hover {
+    background-color: #ddd;
+}
+
+/* Create an active/current tablink class */
+ul.tab li a:focus, .active {
+    background-color: #ccc;
+}
+.mosaic-tab li a{
+  border-top: 1px solid #bbb;
+  border-left: 1px solid #bbb;
+  border-right: 1px solid #bbb;
+  border-top-right-radius:4px;
+  border-top-left-radius:4px;
+}
+
+/* Style the tab content */
+.tabcontent {
+    display: none;
+    padding: 6px 12px;
+    -webkit-animation: fadeEffect 1s;
+    animation: fadeEffect 1s;
+}
+
+@-webkit-keyframes fadeEffect {
+    from {opacity: 0;}
+    to {opacity: 1;}
+}
+
+@keyframes fadeEffect {
+    from {opacity: 0;}
+    to {opacity: 1;}
+}
+</style>
+
+<div class="" id="tabs">
+  <ul class="tab mosaic-tab">
+    <li v-if="selectedDevice!=null"><a href="javascript:void(0)" class="tablinks" onclick="openCity(event, 'tab1')">Device History</a></li>
+    <li v-if="selectedSchool!=null"><a href="javascript:void(0)" class="tablinks" onclick="openCity(event, 'tab3')">School Geofences</a></li>
+    <li v-if="selectedSchool!=null"><a href="javascript:void(0)" class="tablinks" onclick="openCity(event, 'tab2')">School Information</a></li>
+    <li><a href="javascript:void(0)" class="tablinks" onclick="openCity(event, 'tab4')">Usage Tips</a></li>
+    <li><a href="javascript:void(0)" class="tablinks" onclick="openCity(event, 'tab5')">Users</a></li>
+  </ul>
+
+  <div id="tab4" class="tabcontent">
+
+  </div>
+
+  <div id="tab5" class="tabcontent">
+    <span onclick="addUser()" class="fa btn btn-sm btn-primary fa-user-plus pull-right">New User</span>
+    <table class="table table-sm table-condensed table-responsive">
+        <thead>
+        <tr>
+            <th>Name</th>
+            <th>Surname</th>
+            <th>Group</th>
+            <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr id="user-list" v-for="u in users">
+            <td>{{u.name}}</td>
+            <td>{{u.surname}}</td>
+            <td>{{u.group}}</td>
+            <td>
+              <span v-on:click="showLocation(dv)" data-toggle="tooltip" title="Delete User" class="badge  btn btn-sm btn-danger fa fa-trash-o"></span>
+              <span v-on:click="showLocation(dv)" data-toggle="tooltip" title="Edit User" class="badge  btn btn-sm btn-primary fa fa-pencil"></span>
+              <span v-if="u.group=='Admin'" v-on:click="showLocation(dv)" data-toggle="tooltip" title="Assign School" class="badge  btn btn-sm btn-primary fa fa-university"></span>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+  </div>
+
+  <div id="tab1" class="tabcontent">
+    <span v-on:click="saveReport()" class="fa btn btn-sm btn-primary fa-file-excel-o pull-right">Save Report</span>
+    <table class="table table-sm table-condensed table-responsive">
+        <thead>
+        <tr>
+            <th>Time</th>
+            <th>Lat</th>
+            <th>Lng</th>
+            <th>Place</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr id="device-list" v-for="dv in deviceTrails">
+            <td>{{(new Date(dv.time)).toLocaleDateString()}} {{(new Date(dv.time)).toLocaleTimeString()}}</td>
+            <td>{{dv.lat}}</td>
+            <td>{{dv.lng}}</td>
+            <td><span v-on:click="showLocation(dv)" class="badge  btn btn-sm btn-primary fa fa-map-marker"></span></td>
+        </tr>
+        </tbody>
+    </table>
+  </div>
+
+
+  <div id="tab2" class="tabcontent">
+    <p>School Name: {{selectedSchool.data.name}}</p>
+    <p>Email Address: {{selectedSchool.data.email}}</p>
+    <p>School Location:{{selectedSchool.data.address}}</p>
+  </div>
+
+  <div id="tab3" class="tabcontent">
+    <div class="pull-right">
+    <div class="input-group input-group-sm">
+      <input id="gfNameInput" type="text" class="form-control form-control-sm" placeholder="New Geafence Name...">
+      <span class="input-group-btn input-sm">
+        <button v-on:click="newGf()" class="btn btn-primary btn-sm" type="button"><i class="fa fa-plus-circle" aria-hidden="true"></i></button>
+      </span>
+    </div>
+  </div>
+  <div class="row">
+  <div id="cards" class=" col-sm-12 pull-left">
+    <div>
+      <div>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item" v-for="gf in schoolPremises"> {{gf.name}}
+            <span v-if="gf==selectedGf" v-on:click="saveGf()" class="tag bg-primary label-pill float-xs-right pull-right"><i class="fa fa-floppy-o"></i></span>
+            <span v-if="!drawing" v-on:click="editGf(gf)" class="tag bg-primary label-pill float-xs-right pull-right"><i class="fa fa-map-o"></i></span>
+            <span v-if="!drawing" v-on:click="rmGf()" class="tag bg-danger label-pill float-xs-right pull-right"><i class="fa fa-trash-o"></i></span>
+          </li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  </div>
+</div>
+
+<div class="modal fade" id="doneModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <!--Content-->
+        <div class="modal-content">
+            <!--Header-->
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                <h4 class="modal-title" id="myModalLabel"><i class="fa fa-pencil"></i> Register New User:</h4>
+                <div class="btn-group pull-right">
+            </div>
+            </div>
+            <!--Body-->
+            <div>
+              <div class="md-form">
+                  <i class="fa fa-user prefix"></i>
+                  <input type="text" id="st_name" class="form-control" v-model="newUser.name">
+                  <label for="form3">Name</label>
+              </div>
+              <div class="md-form">
+                  <i class="fa fa-user prefix"></i>
+                  <input type="text" id="st_name" class="form-control" v-model="newUser.surname">
+                  <label for="form3">Surname</label>
+              </div>
+              <div class="md-form">
+                  <i class="fa fa-user prefix"></i>
+                  <input type="text" id="st_name" class="form-control" v-model="newUser.email">
+                  <label for="form3">Email</label>
+              </div>
+              <div class="md-form">
+                  <i class="fa fa-user prefix"></i>
+                  <div class="dropdown">
+                    <button class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown">Select User Group
+                      <span class="caret"></span></button>
+                      <ul class="dropdown-menu list-group">
+                        <li class="list-group-item" v-on:click="setGroup('Technician')"><i class="fa fa-cog"></i><a href="#">Technician</a></li>
+                        <li class="list-group-item" v-on:click="setGroup('Admin')"><i class="fa fa-user-secret"></i><a href="#">Admin</a></li>
+                        <li class="list-group-item" v-on:click="setGroup('Guest')"><i class="fa fa-user"></i><a href="#">Guest</a></li>
+                      </ul>
+                    </div>
+              </div>
+              <div class="md-form">
+                  <i class="fa fa-user prefix"></i>
+                  <input type="text" id="st_name"  v-model="newUser.password" class="form-control">
+                  <label for="form3">Password</label>
+              </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" v-on:click="saveUsers()">OK</button>
+            </div>
+
+        </div>
+        <!--/.Content-->
+    </div>
+</div>
+<div class="modal fade" id="deModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <!--Content-->
+        <div class="modal-content">
+            <!--Header-->
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                <h4 class="modal-title" id="myModalLabel"><i class="fa fa-pencil"></i> You are logged in as guest</h4>
+                <div class="btn-group pull-right">
+            </div>
+            </div>
+            <!--Body-->
+          <div>
+              The Guest Account is for demo perposes only, it can not make settings or view some data
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">OK</button>
+            </div>
+
+        </div>
+        <!--/.Content-->
+    </div>
+</div>
+  <div id="tab4" class="tabcontent">
+    <div class="btn btn-primary" v-on:click="updateMessage()">Click</div>
+    {{mess}}
+  </div>
+
+</div>
+<script>
+function openCity(evt, cityName){
+    var i, tabcontent, tablinks;
+    tabcontent = document.getElementsByClassName("tabcontent");
+    for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+    }
+    tablinks = document.getElementsByClassName("tablinks");
+    for (i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+    document.getElementById(cityName).style.display = "block";
+    evt.currentTarget.className += " active";
+}
+</script>

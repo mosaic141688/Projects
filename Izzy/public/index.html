@@ -1,0 +1,620 @@
+
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
+    <title>Izzy-Tracker</title>
+    <script type="text/javascript" src="./node_modules/json2csv/dist/json2csv.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/3.5.1/firebase.js"></script><script>
+    window.drawing=false;
+      var config = {
+        apiKey: "AIzaSyC0CR9YjOJrC93vSNnFLjw-1dJ5D99RzkI",
+        authDomain: "zile-66c59.firebaseapp.com",
+        databaseURL: "https://zile-66c59.firebaseio.com",
+        storageBucket: "zile-66c59.appspot.com",
+        messagingSenderId: "606695466440"
+      };
+      firebase.initializeApp(config);
+      window.database = firebase.database;
+      window.chatRef = window.database().ref("chat");
+      window.izzy=new function(){
+        var self = this;
+        this.events={};
+        this.on=function(e,callback){
+          self.events[e]=callback;
+        }
+        this.emit=function(e,data){
+          return self.events[e]?self.events[e](data):null;
+        }
+        this.user={
+          email:"",
+          name:"guest",
+          surname:"",
+          password:"",
+          group:"Guest"
+        }
+
+        return this;
+      };
+      window.izzy.on("hi",(data)=>console.log(data));
+      window.izzy.emit("hi","Hello World");
+    </script>
+    <script type="text/javascript" src="./node_modules/arrive/src/arrive.js">
+    </script>
+
+    <script type="text/javascript" src="./node_modules/file-saver/FileSaver.js">
+
+    </script>
+
+    <script type="text/javascript" src="./node_modules/mdbootstrap/js/jquery-2.2.3.js"></script>
+    <script src="node_modules/handsontable/dist/handsontable.full.js"></script>
+     <link rel="stylesheet" media="screen" href="node_modules/handsontable/dist/handsontable.full.css">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="./node_modules/handsontable/dist/handsontable.css" media="screen" title="no title">
+    <!-- Bootstrap core CSS -->
+    <link href="./node_modules/mdbootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="node_modules/bootstrap-table/dist/bootstrap-table.css" media="screen" title="no title">
+
+    <!-- Material Design Bootstrap -->
+    <link href="./node_modules/mdbootstrap/css/mdb.min.css" rel="stylesheet">
+        <script src="node_modules/socket.io-client/socket.io.js"></script>
+
+    <!-- Your custom styles (optional) -->
+    <link href="./node_modules/mdbootstrap/css/style.css" rel="stylesheet">
+        <link rel="stylesheet" href="./style.css" media="screen" title="no title">
+    <script src="node_modules/vue/dist/vue.js"></script>
+     <base href="/">
+
+     <script type="text/javascript">
+     //window.socket = io();
+     window.triangleCoords=[];
+
+function loadVue() {
+ new Vue({
+   el: '#main-app',
+   data: {
+     user:window.izzy.user,
+     message: 'Hello Vue.js!',
+     schools:[],
+     messages:[],
+     user:null,
+     msg:"",
+     menuup:true,
+     selectedSchool:null,
+   },
+   created:function () {
+     console.log("Hello World");
+     this.user=window.izzy.user;
+     window.izzy.on("login",(us)=>{
+       window.izzy.user=us;
+       this.user=us;
+       $('#overlay').hide("slow");
+     });
+     var chatRef = window.database().ref("chat");
+     chatRef.on("value",(snap)=>{
+       console.log("DBSNAP "+JSON.stringify(snap.val()));
+       this.messages=snap.val()==null?[]:snap.val();
+     });
+
+     var schoolsRef = window.database().ref("schools");
+     schoolsRef.on("value",(snap)=>{
+       this.schools=[];
+       var _schools = snap.val();
+       for (var school in _schools) {
+         if (_schools.hasOwnProperty(school)) {
+           this.schools.push({id:school,data:_schools[school]});
+         }
+       }
+
+     })
+   },
+   methods:{
+     method1:function () {
+       return 5;
+     },
+     signout:function () {
+       console.log("signout");
+       $("#loginbox").show("slow");
+       $("#app").hide("slow");
+       this.user=null;
+       window.localStorage.clear();
+     },
+     sendMessage:function(){
+        var message={
+          from:"client",
+          to:"support",
+          content:this.msg
+        }
+        this.messages.push(message);
+         var chatRef = window.database().ref("chat");
+         chatRef.set(this.messages);
+         this.msg="";
+     },
+      side:function (i) {
+        log("in b "+i.from);
+       return {"msg_sent":i.from=='client',"msg_receive":i.to=='client'}
+     },
+     openNav:function(){
+       this.menuup=!this.menuup;
+     },
+     selectSchool:function(sch){
+        window.selectedSchool=sch;
+        window.izzy.emit("selected-school",sch)
+        this.selectedSchool=sch;
+        window.triangleCoords=[];
+        if(sch.data.hasOwnProperty("premise")){
+          sch.data.premise.forEach((cd)=>{
+              window.triangleCoords.push({lat:cd.lat,lng:cd.lng})
+          })
+        }
+        else {
+          window.triangleCoords=[];
+        }
+        loadMap();
+
+        //$("#devices").load(".html");
+     }
+   },
+   computed:{
+     b:function (i) {
+       return {"msg_sent":i.from=='client',"msg_receive":i.to=='client'}
+     }
+   }
+ })
+}
+
+
+
+
+function logout(){
+
+   window.localStorage.clear();
+   window.school=null;
+   $('#overlay').load('/signup.html');
+   $('#overlay').show("slow");
+   closeNav()
+}
+
+ $("document").ready(function () {
+   var ref = firebase.database();
+   loadVue();
+   ref.ref("schools").on("value",(val)=>{
+     window.school=val.val();
+    // $('#overlay').hide("slow");
+   })
+    $("#content").load("/map.html");
+    $("#tabs-card").load("/tabs.html")
+    $("#dev-container").load("dev-reg.html");
+    (function() {
+      console.log(JSON.stringify(window.localStorage.getItem("school")));
+      //window.localStorage.clear();
+      window.school=JSON.parse(window.localStorage.getItem("school"));
+    //  var _pass = window.localStorage.getItem("pass");
+  //    console.log(_pass);
+      window.school?$("#overlay").hide("slow"):$('#overlay').load('/signup.html');
+    })();
+
+    console.log("DOcument Loaded");
+
+
+    $("#loginbtn").click(()=>{
+      showLoading();
+    //socket.emit("login",{uname:$("#user-name").val(),pass:$("#password").val()})
+  });
+
+  /*  socket.on("login-error",function(le){
+      document.getElementById("error-box").innerHTML=le;
+    });
+
+    window.socket.on("auth",(_user)=> {
+      window.user = _user;
+    $("#loginbox").hide("slow");
+//    $("#app").show("slow");
+ });*/
+
+ });
+
+ function loadMap(){
+     $("#content").load("/map.html");
+    // $(".card-title").html("Maps");
+ }
+
+ function loadDeviceList(){
+    $("#content").load("/dev-table.html");
+         $(".card-title").html("Registered Devices");
+ }
+
+ function loadDeviceReg(){
+    $("#content").load("dev-reg.html");
+       $(".card-title").html("Register A Device to School");
+ }
+
+ function loadLostDevices(){
+    $("#content").load("lost-dev.html");
+         $(".card-title").html("List Of Lost Devices");
+ }
+
+ function showLoading(){
+    $(".float").html('<img src="./ripple.svg" alt="" />');
+    $(".popup").show("slow");
+ }
+
+ function hidePopup(){
+   $(".popup").hide("slow");
+ }
+
+
+ function showDialog(text){
+    $(".float").html('<div class="card"> '+text+' </div>');
+    $(".popup").show("slow");
+ }
+
+ function showProfile(){
+   $("#content").load("profile.html");
+        $(".card-title").html("School Profile");
+ }
+
+
+
+  function showError(text){
+    var ctext =  '<div class="card error-card">\
+   '+text+' \
+   <div class="err-cancel" onclick="hidePopup()">Cancel</div> \
+    </div>';
+     $(".float").html(ctext);
+     $(".popup").show("");
+  }
+
+ (function() {
+   var quotes =["It is impossible for a man to learn what he thinks he already knows. \n Epictetus",
+"Have you ever been at sea in a dense fog, when it seemed as if a tangible white darkness shut you in and the great ship, tense and anxious, groped her way toward the shore with plummet and sounding-line, and you waited with beating heart for something to happen? I was like that ship before my education began, only I was without compass or sounding line, and no way of knowing how near the harbor was. “Light! Give me light!” was the wordless cry of my soul, and the light of love shone on me in that very hour. \n Helen Keller",
+"If the only tool you have is a hammer, you tend to see every problem as a nail. \n Abraham Maslow",
+"You can teach a student a lesson for a day; but if you can teach him to learn by creating curiosity, he will continue the learning process as long as he lives. \n Clay P. Bedford",
+"Aim for success, not perfection. Never give up your right to be wrong, because then you will lose the ability to learn new things and move forward with your life. Remember that fear always lurks behind perfectionism. \n David M. Burns",
+"A teacher affects eternity; he can never tell where his influence stops. \n Henry B Adams",
+"Keep away from people who try to belittle your ambitions. Small people always do that, but the really great make you feel that you, too, can become great. \n Mark Twain",
+"The first problem for all of us, men and women, is not to learn, but to unlearn. \n Gloria Steinem",
+"Children have never been very good at listening to their elders, but they have never failed to imitate them. \n James Baldwin",
+"Education is a progressive discovery of our own ignorance. Will Durant",
+"The difference between school and life? In school, you’re taught a lesson and then given a test. In life, you’re given a test that teaches you a lesson. \n Tom Bodett",
+"Tell me and I’ll forget; show me and I may remember; involve me and I’ll understand. \n Chinese proverb",
+"If someone is going down the wrong road, he doesn’t need motivation to speed him up. What he needs is education to turn him around. \n Jim Rohn",
+"People learn something every day, and a lot of times it’s that what they learned the day before was wrong. \n Bill Vaughan",
+"1.Education cost money, but then so does ignorance. \n Claus Moser",
+"2.What sculpture is to a block of marble \n education is to the human soul. \n Joseph Addison",
+"3.Education makes a people easy to lead \n but difficult to drive: easy to govern, but impossible to enslave. \n Peter Brougham",
+"4.Do not train children to learning by force and harshness, but direct them to it by what amuses their minds, so that you may be better able to discover with accuracy the peculiar bent of the genius of each. \n Plato",
+"5.It is in fact a part of the function of education to help us escape, not from our own time — for we are bound by that — but from the intellectual and emotional limitations of our time. \n T.S. Eliot",
+"6.If people did not do silly things, nothing intelligent would ever get done. \n Ludwig Wittgenstein",
+"7.The beautiful thing about learning is that no one can take it away from you. \n B.B. King",
+"A child miseducated is a child lost. \n John F. Kennedy",
+"8.A good teacher must be able to put himself in the place of those who find learning hard.",
+"9.Eliphas Levi \n A liberal education is at the heart of a civil society, and at the heart of a liberal education is the act of teaching.",
+"10.A. Bartlett Giamatti \n An educational system isn’t worth a great deal if it teaches young people how to make a living but doesn’t teach them how to make a life.",
+"11.Author Unknown \n All the world is a laboratory to the inquiring mind.",
+"12.Martin H. Fischer \n An investment in knowledge pays the best dividends.",
+"13.Benjamin Franklin \n Around here, we don’t look backwards for very long… We keep moving forward, opening up new doors and doing new things because we’re curious… and curiosity keeps leading us down new paths.",
+"14.Walt Disney \n Before any great things are accomplished, a memorable change must be made in the system of education…to raise the lower ranks of society nearer to the higher.",
+"15.John Adams \n Better than a thousand days of diligent study is one day with a great teacher.",
+"16.Japanese Proverb \n Children have to be educated, but they have also to be left to educate themselves.",
+"17.Ernest Dimnet \n Children must be taught how to think, not what to think.",
+"18.Margaret Mead \n Do not confine your children to your own learning, for they were born in another time.",
+"19.Chinese Proverb\n Do you know the secret of the true scholar? In every man there is something wherein I may learn of him; and in that I am his pupil.",
+"20.Ralph Waldo Emerson\n Don’t just teach your kids to read, teach them to question what they read. Teach them to question everything.",
+"21.George Carlin \n Education aims to give you a boost up the ladder of knowledge. Too often, it just gives you a cramp on one of its rungs.",
+"22.Martin H. Fischer \n Education costs money, but then so does ignorance. \n23.Claus Moser"]
+  var i =0;
+
+   setInterval(()=>{
+     $("#qimg").animate({
+   opacity: '0.5',
+   background:"#ff0000",
+   height: '150px',
+   width: '150px'
+});
+
+$("#qimg").animate({
+opacity: '1',
+background:"#ff0000",
+height: '300px',
+width: '300px'
+});
+
+ $("#devices").load("devices.html");
+
+$('.quotes').html(i<quotes.length?"\""+quotes[i++]+"\"":"Please Check Your Internet Connection");
+    },6000);
+ })();
+
+
+ function clearDevices(){
+   console.log(window.devices);
+   for (var i in window.devices) {
+     console.log(i);
+     window.database().ref("devices").child(i).child("trail").set(null);
+   }
+ }
+
+ function saveFence(){
+   window.database().ref("schools").child(window.selectedSchool.id).child("premise").set(triangleCoords);
+ }
+
+ function clearFence(){
+     window.database().ref("schools").child(window.selectedSchool.id).child("premise").set(null);
+ }
+ $(function() {
+
+   $('.list-group-item').on('click', function() {
+     $('.fa', this)
+       .toggleClass('fa-chevron-right')
+       .toggleClass('fa-chevron-down');
+   });
+
+ });
+
+
+     </script>
+     <script type="text/x-template" src="schools-template.js">
+     </script>
+
+</head>
+
+<body id="main-app">
+    <!-- Start your project here-->
+    <style media="screen">
+      #new-dev{
+          position: fixed;
+          top:0;
+          display: none;
+          left: 0;
+          width: 100%;
+          z-index: 6;
+      }
+    </style>
+<div id="mySidenav" class="sidenav card">
+  <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
+  <div class="card-block">
+    <!--Title-->
+      <a class="pull-right" data-toggle='collapse' data-target="#user-menu"><i class="fa fa-cog">
+        <ul class="list-group collapse" id="user-menu">
+          <li class="list-group-item" onclick="logout()"><i class="fa fa-sign-out"></i>Logout</li>
+          <li class="list-group-item"><i class="fa fa-key"></i>Change Password</li>
+        </ul>
+      </i></a>
+      <span class="card-title">
+          <h4 >{{user.name}}</h4><h6>{{user.group}}</h6>
+      </span>
+
+    <hr>
+</div>
+  <ul class="list-group ">
+      <li class="active list-group-item">
+          <a class="nav-link" href="#"><i class="fa fa-fw fa-home"></i>Home <span class="sr-only">(current)</span></a>
+      </li>
+      <li class="list-group-item" onclick="$('#chat-container').toggle('slow')">
+          <a class="" href="#"><i class="fa fa-fw fa-comments"></i>Support</a>
+      </li>
+      <li class="list-group-item">
+          <a class="nav-link" href="#"><i class="fa fa-fw fa-info"></i>About</a>
+      </li>
+
+      <li  class="list-group-item" href="#item-1"  data-toggle="collapse">
+        <a>
+          <i class="fa fa-chevron-right"></i>Schools
+          </a>
+          <div class="list-group collapse" id="item-1">
+            <ul>
+              <li v-for="school in schools" href="#item-1-1" class="list-group-item" data-toggle="collapse">
+              <div v-on:click="selectSchool(school)" class="sch-list">{{school.data.name}}</div>
+            </li>
+            </ul>
+
+        </div>
+      </li>
+  </ul>
+</div>
+    <div class="row" id="new-dev">
+        <div class="col-sm-4">
+
+        </div>
+        <div class="col-sm-4" id="dev-container">
+
+        </div>
+        <div class="col-sm-4">
+
+        </div>
+    </div>
+    <div class="popup row">
+      <div class="col-md-4">
+
+      </div>
+      <div class="float col-md-4 gears">
+
+      </div>
+      <div class="col-md-4">
+
+      </div>
+    </div>
+<div id="overlay">
+<div id="ziload">
+  <div id="loadimg">
+    <img src="zile.jpg" class="img-rounded" alt="Cinque Terre" width="300" height="300" id="qimg">
+    <div class="quotes">
+    </div>
+  </div>
+</div>
+</div>
+<header>
+  <nav class="navbar navbar-dark bg-primary">
+      <button id="menu-left" class="pull-left navbar-toggler" type="button" onclick="openNav()">
+          <i class="fa fa-bars"></i>
+      </button>
+        <a class="navbar-brand" href="#">Izzy Tracker</a>
+      <div class="container">
+          <div class="collapse navbar-toggleable-xs" id="collapseEx2">
+          </div>
+      </div>
+  </nav>
+</header>
+<main style="height: 100%;">
+<div class="row" style="height: 100%;">
+    <div class="col-xs-5" style="height:100%;">
+<div  v-if="selectedSchool!=null"class="card" id="devices-card"  style="height:50%;width:100%">
+    <div id="devices" class="card-content">
+    </div>
+</div>
+<div class="card" id="tabs-card" style="height:40%">
+</div>
+    </div>
+    <div class="col-xs-7" style="height: 100%;">
+      <!--Card-->
+      <div class="card"  style="height: 90%;">
+
+          <div class="card-block"  style="height: 100%;">
+              <!--Title-->
+              <h4 class="card-title">Map</h4>
+
+              <div id="content">
+
+          </div>
+          <!--/.Card content-->
+      </div>
+    </div>
+
+    <div class="card" style="height:0%">
+
+        <!--Card image-->
+        <!--/.Card image-->
+
+        <!--Card content-->
+        <div class="card-block " >
+            <!--Title-->
+            <!-- Nav tabs -->
+            <!-- Nav tabs -->
+            Hello World
+
+        </div>
+        <!--/.Card content-->
+
+    </div>
+</div>
+</div>
+<div class="container" id="chat-container">
+    <div class="row chat-window col-xs-9" id="chat_window_1" style="margin-left:10px;">
+        <div class="col-xs-12 col-md-12">
+          <div class="panel panel-default card">
+                <div class="panel-heading top-bar">
+                    <div class="col-md-8 col-xs-8">
+                        <h6 class="panel-title"><span class="glyphicon glyphicon-comment"></span> Chat</h6>
+                    </div>
+                    <div class="col-md-4 col-xs-4" style="text-align: right;">
+                        <a href="#"><span id="minim_chat_window" class="glyphicon glyphicon-minus icon_minim"></span></a>
+                        <a href="#"><span class="glyphicon glyphicon-remove icon_close" data-id="chat_window_1"></span></a>
+                    </div>
+                </div>
+                <div class="panel-body msg_container_base">
+                  <div class="" v-for="message in messages">
+                    <div class="row msg_container base_sent" v-if=message.from=='client' >
+                        <div class="col-md-10 col-xs-10">
+                            <div class="messages msg_sent">
+                                <p>{{message.content}}</p>
+                                <time datetime="2009-11-13T20:00">me</time>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-xs-2 avatar">
+                            <img src="http://www.bitrebels.com/wp-content/uploads/2011/02/Original-Facebook-Geek-Profile-Avatar-1.jpg" class=" img-responsive ">
+                        </div>
+                    </div>
+                    <div class="row msg_container base_receive" v-if=message.from!='client'>
+                      <div class="col-md-2 col-xs-2 avatar" >
+                          <img src="http://www.bitrebels.com/wp-content/uploads/2011/02/Original-Facebook-Geek-Profile-Avatar-1.jpg" class=" img-responsive ">
+                      </div>
+                        <div class="col-md-10 col-xs-10">
+                            <div class="messages msg_receive" >
+                                <p>{{message.content}}</p>
+                                <time datetime="2009-11-13T20:00">support</time>
+                            </div>
+                        </div>
+                    </div>
+                  </div>
+                <div class="panel-footer">
+                    <div class="input-group">
+                        <input v-model='msg' id="btn-input" type="text" class="form-control input-sm chat_input" placeholder="Write your message here..." />
+                        <span class="input-group-btn">
+                        <button class="btn btn-primary btn-sm" id="btn-chat" v-on:click="sendMessage()">Send</button>
+                        </span>
+                    </div>
+                </div>
+        </div>
+        </div>
+    </div>
+  </div>
+
+    <div class="btn-group dropup">
+        <button type="button" class="btn btn-default dropdown-toggle" onclick="$('#chat_window_1').toggle('slow')">
+          chat
+        </button>
+    </div>
+</div>
+
+<script type="text/javascript">
+$(document).on('click', '.panel-heading span.icon_minim', function (e) {
+  var $this = $(this);
+  if (!$this.hasClass('panel-collapsed')) {
+      $this.parents('.panel').find('.panel-body').slideUp();
+      $this.addClass('panel-collapsed');
+      $this.removeClass('glyphicon-minus').addClass('glyphicon-plus');
+  } else {
+      $this.parents('.panel').find('.panel-body').slideDown();
+      $this.removeClass('panel-collapsed');
+      $this.removeClass('glyphicon-plus').addClass('glyphicon-minus');
+  }
+});
+$(document).on('focus', '.panel-footer input.chat_input', function (e) {
+  var $this = $(this);
+  if ($('#minim_chat_window').hasClass('panel-collapsed')) {
+      $this.parents('.panel').find('.panel-body').slideDown();
+      $('#minim_chat_window').removeClass('panel-collapsed');
+      $('#minim_chat_window').removeClass('glyphicon-plus').addClass('glyphicon-minus');
+  }
+});
+$(document).on('click', '#new_chat', function (e) {
+  var size = $( ".chat-window:last-child" ).css("margin-left");
+   size_total = parseInt(size) + 400;
+  alert(size_total);
+  var clone = $( "#chat_window_1" ).clone().appendTo( ".container" );
+  clone.css("margin-left", size_total);
+});
+$(document).on('click', '.icon_close', function (e) {
+  //$(this).parent().parent().parent().parent().remove();
+  $( "#chat_window_1" ).remove();
+});
+
+
+function openNav() {
+    document.getElementById("mySidenav").style.width = "250px";
+}
+
+/* Set the width of the side navigation to 0 */
+function closeNav() {
+    document.getElementById("mySidenav").style.width = "0";
+}
+
+</script>
+</main>
+
+<footer>
+</footer>
+    <script type="text/javascript" src="./node_modules/mdbootstrap/js/jquery-2.2.3.min.js"></script>
+    <script type="text/javascript" src="./node_modules/mdbootstrap/js/tether.min.js"></script>
+    <script type="text/javascript" src="./node_modules/mdbootstrap/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="./node_modules/mdbootstrap/js/mdb.min.js"></script>
+</body>
+
+</html>

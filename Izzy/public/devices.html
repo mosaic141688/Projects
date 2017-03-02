@@ -1,0 +1,167 @@
+<script type="text/javascript">
+  (function(){
+    console.log("Loading devices");
+    devicesVue();
+  //  window.socket.emit("get-school",window.school._id);
+  }());
+  function geocodeLatLng() {
+    var geocoder = new google.maps.Geocoder;
+    var latlng = {lat: -26.328983333333333, lng:31.147751666666668};
+    geocoder.geocode({'location': latlng}, function(results, status) {
+      if (status === 'OK') {
+        if (results[0]) {
+            console.log(results[0]);
+        } else {
+          window.alert('No results found');
+        }
+      } else {
+        window.alert('Geocoder failed due to: ' + status);
+      }
+    });
+  }
+//  geocodeLatLng();
+
+  //Vue from down here
+  function devicesVue() {
+       new Vue({
+           el: "#dev-list-card",
+           data: {
+               devices:[],
+               departments:[]
+           },
+           created:function () {
+             var self=this;
+             this.schoolSelected=window.hasOwnProperty("selectedSchool");
+             if(!window.hasOwnProperty("selectedSchool"))return;
+             console.log(window.hasOwnProperty("selectedSchool"));
+                var devRef=window.database().ref("devices");
+                 devRef.orderByChild("school").equalTo(window.selectedSchool.id).on("child_added",(snap)=>{
+                  // console.log("Child Added"+JSON.stringify(snap.val()));
+                   var dev = snap.val();
+                   dev._id=snap.key;
+                   $.get("https://maps.googleapis.com/maps/api/geocode/json?latlng="+dev.location.lat+","+dev.location.lng+"&key=AIzaSyCDNUh9drF-hwfKtl_An8yDXjgzRWAIQEQ",(res)=>{
+                     //console.log("GEODECODE"+JSON.stringify(res));
+                     dev.address="res.results[0].formatted_address";
+                     if(!dev.loc)dev.loc=false;
+                     dev.lost?null:self.devices.push(dev);
+                 });
+
+                 })
+
+           },
+           methods:{
+             viewDevice:function(_dev_id){
+               window.selectedDevice=_dev_id;
+               $("#content").load("device-map.html")
+             },
+             selectDevice:function(dev){
+               window.selectedDevice=dev;
+               window.izzy.emit("selected-devie",dev)
+               console.log("Selected device"+JSON.stringify(dev))
+             },
+             getDevice:function(_dev_id){
+               var self=this;
+               var devRef= window.database().ref("devices").child(_dev_id);
+               devRef.on("value",(dv)=>{
+                 console.log(dv.val());
+                 if(!dv.val().location) return;
+                   $.get("https://maps.googleapis.com/maps/api/geocode/json?latlng="+dv.val().location.lat+","+dv.val().location.lng+"&key=AIzaSyCDNUh9drF-hwfKtl_An8yDXjgzRWAIQEQ",(res)=>{
+                   //  console.log(res.results[0].formatted_address)
+                     //console.log(_devs[device]);
+                     var temp = [];
+                     self.devices.forEach((dev)=>{
+                       dev.address=dev._id==_dev_id?res.results[0].formatted_address:dev.address;
+                       temp.push(dev);
+                       console.log(dev);
+                     })
+                     self.devices=[];
+                     temp.forEach((tmp)=>{
+                       self.devices.push(tmp);
+                       console.log(tmp);
+                     })
+                   })
+               })
+             },
+             reportDevice:function(_dev_id){
+               //$.post("/reportlost",{dev_id:_dev_id},(res)=>$("#content").load("/devices.html"))
+               showLoading();
+               var devRev = window.database().ref("devices").child(_dev_id);
+                 devRev.once("value",(dev)=>{
+                   devRev.child("lost").set(true);
+                   showError("Device Lost");
+                 });
+             },
+             removeDevice:function(_dev_id){
+               showLoading();
+               var devRev = window.database().ref("devices").child(_dev_id);
+
+
+                 devRev.once("value",(dev)=>{
+                   devRev.child("student_name").set(null);
+                   devRev.child("student_id").set(null);
+                   devRev.child("school").set(null);
+                   showError("Device Removed Successfully");
+                 });
+
+               //$.post("/removeDevice",{dev_id:_dev_id,school:window.school._id})
+             }
+           }
+       });
+   }
+
+   function addDevice(){
+     console.log("Add device");
+     $("#new-dev").show("fast");
+   }
+
+</script>
+<!--Panel-->
+<div class="container" id="dev-list-card">
+  <div class="" v-if="schoolSelected">
+    <div class="row" >
+          <div class="col-md-5">
+              <div id="custom-search-input">
+                  <div class="input-group col-md-3">
+                      <input type="text" class="form-control input-sm" placeholder="Search" />
+                      <span class="input-group-btn">
+                          <button class="btn btn-info btn-sm" type="button">
+                              <i class="fa fa-search"></i>
+                          </button>
+                      </span>
+                  </div>
+              </div>
+          </div>
+
+          <div class="col-md-3" >
+              clear
+          </div>
+
+          <div class="col-md-3 btn btn-primary btn-sm" onclick="addDevice()">
+            + Add new
+          </div>
+  	</div>
+
+      <div class="table-responsive">
+          <table class="table table-sm">
+              <thead>
+              <tr>
+                  <th>#</th>
+                  <th>Last Seen</th>
+                  <th>Track</th>
+                  <th>Status</th>
+              </tr>
+              </thead>
+              <tbody>
+              <tr id="device-list" v-for="device in devices">
+                  <td>{{device._id}}</td>
+                  <td>{{(new Date(device.loc.time)).toLocaleDateString()}} {{(new Date(device.loc.time)).toLocaleTimeString()}}</td>
+                  <td><input type="checkbox" id="checkbox11"></td>
+                  <td>online <span v-on:click="selectDevice(device)" class="badge  btn btn-sm fa fa-search info-color"></span></td>
+              </tr>
+              </tbody>
+          </table>
+      </div>
+
+      </div>
+  <h1 v-else>Select A School</h1>
+</div>
